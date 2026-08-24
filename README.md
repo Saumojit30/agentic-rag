@@ -1,5 +1,5 @@
 ---
-title: RAGA: Financial Analyst Agent
+title: "RAGA: Financial Analyst Agent"
 emoji: 💼
 colorFrom: blue
 colorTo: gray
