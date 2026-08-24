@@ -3,8 +3,8 @@ title: RAGA: Financial Analyst Agent
 emoji: 💼
 colorFrom: blue
 colorTo: gray
-sdk: docker
-app_port: 7860
+sdk: streamlit
+app_file: streamlit_app/app.py
 pinned: false
 ---
 
