@@ -105,31 +105,57 @@ Open `http://localhost:8501` to access the analyst terminal.
 
 ---
 
-## Agentic Reasoning Architecture
+## All-Around Agentic ReAct Engine Architecture
+
+RAGA is built on a **fully generalized, domain-agnostic ReAct (Reasoning and Action) planning loop**. While pre-configured as a financial analyst, the system is designed to switch contexts dynamically, converting the planner into different specialized personas.
+
+### Dynamic Agent Personas
+Selectable from the Streamlit sidebar, the platform swaps system rules and prompts to adjust planning behaviors:
+1. **💼 RAGA (Corporate Finance Analyst)**: Optimizes plans to fetch company statistics, run mathematical formulas, and format professional research memos.
+2. **💻 DevHelper (Software Code Planner)**: Focuses on debugging structures, defensive code architecture design, and outlining program modular splits.
+3. **🔍 Scholar (Research Agent)**: Aggregates qualitative inputs from multiple document chunks, emphasizing citation attribution and data-gap detection.
+4. **🤖 General Assistant**: Flexible, general-purpose chatbot planning conversational answers for any miscellaneous tasks.
 
 ```
-       [User Input Question]
-                 │
-                 ▼
-     [Start Agent Loop (ReAct)]
-                 │
-                 ▼
-       ┌───────────────────┐
-       │   LLM Planning    │ <─── (thought text yielded)
-       └─────────┬─────────┘
-                 │
-         [Has tool calls?]
-               /   \
-             YES    NO  ──► [Final Token Streaming] ──► [Done]
-             /
-            ▼
-    [Execute Tool] ─── (tool_call event yielded)
-    (get_company_profile,
-     calculate_ratio,
-     search_sec_filings, etc.)
-            │
-            ▼
-    [Return Result] ─── (observation event yielded)
-            │
-            └─────► [Append to context and loop again]
+                  [User Prompt Input]
+                           │
+                           ▼
+             [Select Agent Persona (UI)]
+                           │
+                           ▼
+          [System Prompt Alignment (FastAPI)]
+             (RAGA, DevHelper, or Scholar)
+                           │
+                           ▼
+             [Start ReAct Planning Loop]
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │   LLM Planning    │ <─── (thought text event yielded)
+                 └─────────┬─────────┘
+                           │
+                   [Has tool calls?]
+                         /   \
+                       YES    NO  ──► [Stream Final Tokens] ──► [Done]
+                       /
+                      ▼
+               [Safety Check]
+            (Llama Prompt Guard)
+                      │
+              [Loop Guard Check] ──► (Injects warning and reroutes if looping)
+                      │
+               [Execute Tool] ─── (tool_call event yielded)
+           (get_company_profile,
+            calculate_ratio,
+            save_user_preference, etc.)
+                      │
+                      ▼
+               [Return Result] ─── (observation event yielded)
+                      │
+                      └─────► [Append to conversation history and loop]
 ```
+
+### Multi-Step Safety & Loop Guarding
+* **Llama Prompt Guard 2**: Before any tool is invoked, the input query passes through `meta-llama/llama-prompt-guard-2-86m` on Groq to identify prompt injections or malicious bypass commands.
+* **Loop Prevention**: If the model attempts to invoke the same tool parameter signature consecutively, the loop interceptor flags it, injects a system warning to the LLM context, and forces the planner to synthesize observations instead of repeating calls.
+* **Semantic memory**: Evaluates past observations and saves preferences using local SQLite cosine vector similarities.

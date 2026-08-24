@@ -65,6 +65,19 @@ st.caption("RAGA (Retrieval-Augmented Generation Analyst) | SQL Registry + SEC H
 with st.sidebar:
     st.header("Terminal Setup")
     
+    # Persona selection
+    persona_options = {
+        "finance": "💼 RAGA (Finance)",
+        "coder": "💻 DevHelper (Coding)",
+        "researcher": "🔍 Scholar (Research)",
+        "general": "🤖 General Assistant"
+    }
+    selected_persona = st.selectbox(
+        "Agent Persona",
+        options=list(persona_options.keys()),
+        format_func=lambda x: persona_options[x]
+    )
+    
     # Dynamic API key entry
     custom_key = st.text_input(
         "API Key (Optional Override)", 
@@ -189,7 +202,7 @@ with tab_terminal:
             
             # SSE streaming parser
             try:
-                params = {"question": question, "session_id": selected_session}
+                params = {"question": question, "session_id": selected_session, "persona": selected_persona}
                 if custom_key:
                     params["api_key"] = custom_key
                 with httpx.stream("GET", f"{BACKEND_URL}/query_stream", params=params, timeout=120.0) as r:

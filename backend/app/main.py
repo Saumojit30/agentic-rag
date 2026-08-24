@@ -138,7 +138,7 @@ def add_company_profile(req: CompanyProfileRequest):
 # --- Streaming Agent Event Endpoint ---
 
 @app.get("/query_stream")
-async def run_query_stream(question: str, session_id: Optional[str] = None, api_key: Optional[str] = None):
+async def run_query_stream(question: str, session_id: Optional[str] = None, api_key: Optional[str] = None, persona: str = "finance"):
     """Invokes the ReAct agent loop and streams thought process and token events."""
     if not question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
@@ -162,11 +162,11 @@ async def run_query_stream(question: str, session_id: Optional[str] = None, api_
         dynamic_llm = LLMClient(api_key=api_key)
         dynamic_pipeline = RAGPipeline(llm=dynamic_llm, store=store)
         return StreamingResponse(
-            dynamic_pipeline.agent.run(question, session_id),
+            dynamic_pipeline.agent.run(question, session_id, persona=persona),
             media_type="text/event-stream"
         )
         
     return StreamingResponse(
-        pipeline.agent.run(question, session_id),
+        pipeline.agent.run(question, session_id, persona=persona),
         media_type="text/event-stream"
     )

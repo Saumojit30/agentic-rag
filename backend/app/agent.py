@@ -1,4 +1,4 @@
-"""Core ReAct Agent executor loop yielding SSE trace events with loop routing safeguards."""
+"""Core ReAct Agent executor loop yielding SSE trace events with loop routing safeguards and dynamic personas."""
 
 import json
 import asyncio
@@ -8,7 +8,8 @@ from .vectorstore import VectorStore
 from .tools import FinancialToolset, TOOLS_SCHEMA
 from .config import settings
 
-SYSTEM_PROMPT = """You are RAGA: Retrieval-Augmented Generation Analyst, a Senior Corporate Financial Analyst Agent. Your objective is to answer research requests using corporate financial records and quantitative tools.
+PERSONA_PROMPTS = {
+    "finance": """You are RAGA: Retrieval-Augmented Generation Analyst, a Senior Corporate Financial Analyst Agent. Your objective is to answer research requests using corporate financial records and quantitative tools.
 
 RULES:
 1. **Planning & Thought**: Before making any tool call or answering, write a thorough explanation of your reasoning inside `<thought>...</thought>` tags. Planning is critical.
@@ -17,7 +18,28 @@ RULES:
 4. **News Sentiment**: Use `get_financial_news_sentiment` to search for latest external market updates.
 5. **Synthesis**: Use `generate_investment_memo` to format your findings into a formal report when requested.
 6. **Iterate**: Analyze tool observations to determine if you need further searches or calculations. Stop once you have fully resolved the user's question.
+""",
+    "coder": """You are DevHelper, an expert Software Architect and Code Planner Agent. Your objective is to analyze coding problems, inspect requirements, plan program structures, and help write clean, verified code.
+
+RULES:
+1. **Planning & Thought**: Outline your structural code plans, module divisions, and algorithms inside `<thought>...</thought>` tags.
+2. **Defensive Coding**: Check boundary cases, potential exceptions, and package dependencies before writing code.
+3. **Mock Sandbox Fallback**: Since you are running in a sandbox, describe file modifications clearly. Suggest shell commands or test scripts to run.
+""",
+    "researcher": """You are Scholar, an advanced Corporate and Academic Research Agent. Your objective is to cross-reference multiple source files, summarize complex subjects, and compile structured literature/knowledge reviews.
+
+RULES:
+1. **Planning & Thought**: Detail your citation lookup and knowledge synthesis steps inside `<thought>...</thought>` tags.
+2. **Attribution**: Cite sources, chunk IDs, or document names whenever asserting facts.
+3. **Bias & Conflict**: Highlight conflicting findings or data gaps in the sources rather than smoothing over differences.
+""",
+    "general": """You are a helpful, general-purpose Agentic Assistant. Your objective is to assist the user with any tasks, questions, or ideas.
+
+RULES:
+1. **Planning & Thought**: Think through how to best solve the user's prompt step-by-step inside `<thought>...</thought>` tags.
+2. **Flexibility**: Adapt your tone, structure, and depth to match the user's query exactly.
 """
+}
 
 
 class FinancialAnalystAgent:
@@ -26,7 +48,7 @@ class FinancialAnalystAgent:
         self.llm = llm
         self.toolset = FinancialToolset(store, llm)
 
-    async def run(self, question: str, session_id: str | None = None) -> AsyncGenerator[str, None]:
+    async def run(self, question: str, session_id: str | None = None, persona: str = "finance") -> AsyncGenerator[str, None]:
         """Runs the ReAct agent loop and yields SSE events.
         
         Events format:
@@ -40,13 +62,14 @@ class FinancialAnalystAgent:
 
         # ------------------ MOCK RUNNER ------------------
         if self.llm.mock:
-            async for event in self._run_mock_agent(question, session_id):
+            async for event in self._run_mock_agent(question, session_id, persona):
                 yield event
             return
 
         # ------------------ REAL AGENT RUNNER ------------------
-        # Setup conversation history
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # Setup conversation history using selected persona
+        system_prompt = PERSONA_PROMPTS.get(persona, PERSONA_PROMPTS["finance"])
+        messages = [{"role": "system", "content": system_prompt}]
         
         # Append last 4 messages from session history to stay context-aware
         for msg in history[-4:]:
@@ -120,7 +143,7 @@ class FinancialAnalystAgent:
                         # Insert corrective instruction message
                         messages.append({
                             "role": "user",
-                            "content": f"System Alert: You are looping by calling '{func_name}' with the exact same arguments again. Do NOT call this tool. Compile your final analysis answer now using observations you already possess."
+                            "content": f"System Warning: You are looping by calling '{func_name}' with the exact same arguments again. Do NOT call this tool. Compile your final analysis answer now using observations you already possess."
                         })
                         break # Break out of loop to re-call LLM with warning
                     
@@ -213,75 +236,108 @@ class FinancialAnalystAgent:
             return f"Error executing tool '{name}': {str(e)}"
 
     # ------------------ DYNAMIC MOCK SIMULATOR ------------------
-    async def _run_mock_agent(self, question: str, session_id: str | None = None) -> AsyncGenerator[str, None]:
-        """Simulates agent execution in Mock Mode to show a rich pipeline trace without API key."""
+    async def _run_mock_agent(self, question: str, session_id: str | None = None, persona: str = "finance") -> AsyncGenerator[str, None]:
+        """Simulates agent execution in Mock Mode to show a rich pipeline trace depending on persona."""
         q_lower = question.lower()
         
-        # Determine ticker
-        ticker = "AAPL"
-        for t in ["AAPL", "MSFT", "NVDA", "TSLA"]:
-            if t.lower() in q_lower:
-                ticker = t
-                break
+        # 1. DevHelper (Coding Persona) Mock Stream
+        if persona == "coder":
+            yield f"event: thought\ndata: {json.dumps({'text': 'User requires assistance with a coding task. I need to plan the module architecture, outline the functions, and mock check compiler parameters.'})}\n\n"
+            await asyncio.sleep(1.0)
+            yield f"event: tool_call\ndata: {json.dumps({'name': 'search_user_memory', 'args': {'query': 'coding style preference'}})}\n\n"
+            await asyncio.sleep(0.5)
+            yield f"event: observation\ndata: {json.dumps({'output': 'No matching coding style preferences found in semantic memory.'})}\n\n"
+            await asyncio.sleep(1.0)
+            yield f"event: thought\ndata: {json.dumps({'text': 'No style constraints retrieved. I will design a clean implementation schema and write standard Python code blocks.'})}\n\n"
+            await asyncio.sleep(1.0)
+            final_answer = (
+                "### Proposed Code Architecture:\n"
+                "Here is the clean, modular Python function to solve your request:\n\n"
+                "```python\n"
+                "def solve_user_request(data: dict) -> dict:\n"
+                "    # Process parameters defensively\n"
+                "    if not data:\n"
+                "        return {'status': 'error', 'message': 'Empty data payload'}\n"
+                "    \n"
+                "    result = {k.upper(): v for k, v in data.items()}\n"
+                "    return {'status': 'success', 'result': result}\n"
+                "```\n"
+                "\nTo verify this locally, save the script and execute unit tests."
+            )
+            
+        # 2. Scholar (Researcher Persona) Mock Stream
+        elif persona == "researcher":
+            yield f"event: thought\ndata: {json.dumps({'text': 'Analyzing research query. I need to search the vector index for qualitative papers, transcripts, or cross-referenced documents.'})}\n\n"
+            await asyncio.sleep(1.0)
+            yield f"event: tool_call\ndata: {json.dumps({'name': 'search_sec_filings', 'args': {'query': question}})}\n\n"
+            await asyncio.sleep(0.5)
+            yield f"event: observation\ndata: {json.dumps({'output': 'Retrieved chunks regarding supply chain risks and inflation margins.'})}\n\n"
+            await asyncio.sleep(1.0)
+            yield f"event: thought\ndata: {json.dumps({'text': 'Information retrieved from filings. I will now synthesize these segments and produce a formal literature summary.'})}\n\n"
+            await asyncio.sleep(1.0)
+            final_answer = (
+                "### Scholar Research Review Summary:\n"
+                "Based on the retrieved corporate filings:\n"
+                "- **Supply Chain Disruption**: Mentioned in filing `nflx_10k_fy25.md` as a moderate threat to licensing expansion.\n"
+                "- **Inflation & Costs**: Competitive pricing remains a factor. Capital allocations are being managed defensively."
+            )
+            
+        # 3. General Assistant Mock Stream
+        elif persona == "general":
+            yield f"event: thought\ndata: {json.dumps({'text': 'User query received. I will analyze the request and provide a general-purpose structured breakdown.'})}\n\n"
+            await asyncio.sleep(1.0)
+            final_answer = f"I am your general-purpose assistant. You asked: \"{question}\". How else can I assist you with your project today?"
+            
+        # 4. RAGA (Finance Persona - Default) Mock Stream
+        else:
+            ticker = "AAPL"
+            for t in ["AAPL", "MSFT", "NVDA", "TSLA"]:
+                if t.lower() in q_lower:
+                    ticker = t
+                    break
 
-        # Step 1: Initial Planning
-        yield f"event: thought\ndata: {json.dumps({'text': f'User is requesting financial analysis for ticker: {ticker}. I need to retrieve the structured company profile to fetch core metrics (revenue, assets, cash, debt) and perform required calculations.'})}\n\n"
-        await asyncio.sleep(1.0)
-        
-        # Tool Call 1: get_company_profile
-        yield f"event: tool_call\ndata: {json.dumps({'name': 'get_company_profile', 'args': {'ticker': ticker}})}\n\n"
-        await asyncio.sleep(0.5)
-        
-        profile_out = self.toolset.get_company_profile(ticker)
-        yield f"event: observation\ndata: {json.dumps({'output': profile_out})}\n\n"
-        await asyncio.sleep(1.0)
+            yield f"event: thought\ndata: {json.dumps({'text': f'User is requesting financial analysis for ticker: {ticker}. I need to retrieve the structured company profile to fetch core metrics (revenue, assets, cash, debt) and perform required calculations.'})}\n\n"
+            await asyncio.sleep(1.0)
+            yield f"event: tool_call\ndata: {json.dumps({'name': 'get_company_profile', 'args': {'ticker': ticker}})}\n\n"
+            await asyncio.sleep(0.5)
+            profile_out = self.toolset.get_company_profile(ticker)
+            yield f"event: observation\ndata: {json.dumps({'output': profile_out})}\n\n"
+            await asyncio.sleep(1.0)
 
-        # Step 2: Next plan step (Calculating margin/ratios)
-        yield f"event: thought\ndata: {json.dumps({'text': f'Company profile metrics retrieved. Now I will calculate the Operating Margin (operating_income / revenue) to assess efficiency.'})}\n\n"
-        await asyncio.sleep(1.0)
-        
-        # Tool Call 2: calculate_financial_ratio
-        ratio_args = {'ticker': ticker, 'metric_a': 'operating_income', 'metric_b': 'revenue', 'operation': '/'}
-        yield f"event: tool_call\ndata: {json.dumps({'name': 'calculate_financial_ratio', 'args': ratio_args})}\n\n"
-        await asyncio.sleep(0.5)
-        
-        ratio_out = self.toolset.calculate_financial_ratio(**ratio_args)
-        yield f"event: observation\ndata: {json.dumps({'output': ratio_out})}\n\n"
-        await asyncio.sleep(1.0)
+            yield f"event: thought\ndata: {json.dumps({'text': f'Company profile metrics retrieved. Now I will calculate the Operating Margin (operating_income / revenue) to assess efficiency.'})}\n\n"
+            await asyncio.sleep(1.0)
+            ratio_args = {'ticker': ticker, 'metric_a': 'operating_income', 'metric_b': 'revenue', 'operation': '/'}
+            yield f"event: tool_call\ndata: {json.dumps({'name': 'calculate_financial_ratio', 'args': ratio_args})}\n\n"
+            await asyncio.sleep(0.5)
+            ratio_out = self.toolset.calculate_financial_ratio(**ratio_args)
+            yield f"event: observation\ndata: {json.dumps({'output': ratio_out})}\n\n"
+            await asyncio.sleep(1.0)
 
-        # Step 3: Check Qualitatives (SEC filings search)
-        yield f"event: thought\ndata: {json.dumps({'text': f'Operating efficiency calculated. I should search recent SEC filings and annual reports to identify primary risks and competitive strategies.'})}\n\n"
-        await asyncio.sleep(1.0)
-        
-        # Tool Call 3: search_sec_filings
-        search_args = {'query': 'supply chain risks capital spending inflation', 'ticker': ticker, 'doc_type': '10-K'}
-        yield f"event: tool_call\ndata: {json.dumps({'name': 'search_sec_filings', 'args': search_args})}\n\n"
-        await asyncio.sleep(0.5)
-        
-        search_out = self.toolset.search_sec_filings(**search_args)
-        yield f"event: observation\ndata: {json.dumps({'output': search_out})}\n\n"
-        await asyncio.sleep(1.0)
+            yield f"event: thought\ndata: {json.dumps({'text': f'Operating efficiency calculated. I should search recent SEC filings and annual reports to identify primary risks and competitive strategies.'})}\n\n"
+            await asyncio.sleep(1.0)
+            search_args = {'query': 'supply chain risks capital spending inflation', 'ticker': ticker, 'doc_type': '10-K'}
+            yield f"event: tool_call\ndata: {json.dumps({'name': 'search_sec_filings', 'args': search_args})}\n\n"
+            await asyncio.sleep(0.5)
+            search_out = self.toolset.search_sec_filings(**search_args)
+            yield f"event: observation\ndata: {json.dumps({'output': search_out})}\n\n"
+            await asyncio.sleep(1.0)
 
-        # Step 4: Generate memo
-        yield f"event: thought\ndata: {json.dumps({'text': 'Financial parameters, ratios, and risk profiles extracted. I have sufficient data. I will now compile these analytical insights and generate a formal investment research memo.'})}\n\n"
-        await asyncio.sleep(1.0)
-        
-        # Tool Call 4: generate_investment_memo
-        memo_findings = (
-            f"- Calculated Operating Margin: {ratio_out.split('= ')[-1]}\n"
-            f"- Structured registry shows Sector: Technology, Cash position: $40B+.\n"
-            f"- SEC filings review highlights component sourcing bottlenecks and competitive hyper-scaler cap-ex pressures."
-        )
-        memo_args = {'ticker': ticker, 'findings': memo_findings}
-        yield f"event: tool_call\ndata: {json.dumps({'name': 'generate_investment_memo', 'args': memo_args})}\n\n"
-        await asyncio.sleep(0.5)
-        
-        memo_out = self.toolset.generate_investment_memo(**memo_args)
-        yield f"event: observation\ndata: {json.dumps({'output': 'Investment Memo formatted and returned.'})}\n\n"
-        await asyncio.sleep(1.0)
+            yield f"event: thought\ndata: {json.dumps({'text': 'Financial parameters, ratios, and risk profiles extracted. I have sufficient data. I will now compile these analytical insights and generate a formal investment research memo.'})}\n\n"
+            await asyncio.sleep(1.0)
+            memo_findings = (
+                f"- Calculated Operating Margin: {ratio_out.split('= ')[-1]}\n"
+                f"- Structured registry shows Sector: Technology, Cash position: $40B+.\n"
+                f"- SEC filings review highlights component sourcing bottlenecks and competitive hyper-scaler cap-ex pressures."
+            )
+            memo_args = {'ticker': ticker, 'findings': memo_findings}
+            yield f"event: tool_call\ndata: {json.dumps({'name': 'generate_investment_memo', 'args': memo_args})}\n\n"
+            await asyncio.sleep(0.5)
+            memo_out = self.toolset.generate_investment_memo(**memo_args)
+            yield f"event: observation\ndata: {json.dumps({'output': 'Investment Memo formatted and returned.'})}\n\n"
+            await asyncio.sleep(1.0)
+            final_answer = memo_out
 
-        # Final Answer Streaming
-        final_answer = memo_out
+        # Stream the final answer tokens for premium UX
         words = final_answer.split(" ")
         for word in words:
             yield f"event: token\ndata: {json.dumps({'token': word + ' '})}\n\n"
