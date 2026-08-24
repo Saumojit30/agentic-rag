@@ -5,8 +5,9 @@ import streamlit as st
 import httpx
 import pandas as pd
 
+import os
 # Base backend URL
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 st.set_page_config(
     page_title="RAGA Analyst Terminal",
