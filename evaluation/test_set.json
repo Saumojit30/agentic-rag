@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "question": "Compare Apple and Microsoft's operating margins for FY25.",
+    "expected_tools": ["get_company_profile", "calculate_financial_ratio"],
+    "target_ratios": {
+      "AAPL": 0.2911,
+      "MSFT": 0.4163
+    },
+    "description": "Tests multi-step company profile lookups and operating margin division calculations for competitor analysis."
+  },
+  {
+    "id": 2,
+    "question": "What did NVIDIA say about Blackwell product transition yield risks in transcripts?",
+    "expected_tools": ["search_sec_filings"],
+    "target_keywords": ["Blackwell", "packaging", "transition", "yield"],
+    "description": "Tests metadata-filtered hybrid search on transcripts to identify specific operational risk factors."
+  },
+  {
+    "id": 3,
+    "question": "Does Tesla have enough cash to cover its total liabilities in FY25?",
+    "expected_tools": ["get_company_profile", "calculate_financial_ratio"],
+    "target_ratios": {
+      "TSLA": 0.6222
+    },
+    "description": "Tests balance sheet liquidity ratio calculations (cash / total_liabilities) for corporate stability analysis."
+  },
+  {
+    "id": 4,
+    "question": "Check Nvidia's news sentiment and summarize analyst outlook.",
+    "expected_tools": ["get_financial_news_sentiment"],
+    "target_keywords": ["NVIDIA", "Blackwell", "CUDA", "demand"],
+    "description": "Tests news scraper tool queries and external market sentiment extraction."
+  },
+  {
+    "id": 5,
+    "question": "Calculate Apple's net profit margin for FY25 and write an investment memo.",
+    "expected_tools": ["get_company_profile", "calculate_financial_ratio", "generate_investment_memo"],
+    "target_ratios": {
+      "AAPL": 0.2456
+    },
+    "description": "Tests full cycle multi-step agent flow: structured registry fetch, ratio arithmetic, and markdown memo compilation."
+  }
+]
