@@ -6,6 +6,40 @@ import httpx
 import pandas as pd
 
 import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+# Auto-spawn FastAPI backend if running in a single-port environment (like HF Spaces Streamlit SDK)
+@st.cache_resource
+def start_backend_subprocess():
+    try:
+        # Check if backend is already running
+        httpx.get("http://127.0.0.1:8000/health", timeout=1.0)
+    except Exception:
+        # If not, spawn it in the background
+        # We add the root folder of the project to PYTHONPATH so backend resolves imports correctly
+        root_path = str(Path(__file__).parent.parent.resolve())
+        env = os.environ.copy()
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = root_path + os.pathsep + env["PYTHONPATH"]
+        else:
+            env["PYTHONPATH"] = root_path
+            
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+            cwd=root_path,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        time.sleep(2.5)  # Allow server startup
+        return proc
+    return None
+
+start_backend_subprocess()
+
 # Base backend URL
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
