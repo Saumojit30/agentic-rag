@@ -1,3 +1,13 @@
+---
+title: Financial Analyst Agentic RAG
+emoji: 💼
+colorFrom: blue
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Project 05 — Financial Analyst Agentic RAG
 
 This project implements an advanced **Corporate & Market Intelligence Agent** that combines unstructured document retrieval (SEC filings, earnings call transcripts) with a structured relational financial registry to perform complex analysis, run exact arithmetic calculations, and compile investment memos.
@@ -15,7 +25,7 @@ Unlike standard RAG pipelines that execute a static sequential workflow (e.g. re
   - `get_financial_news_sentiment`: Simulates external web news searches.
   - `generate_investment_memo`: Formats quantitative ratios and risk factors into a professional markdown investment report.
 - **Premium Analyst UI**: Dark-themed Streamlit dashboard with a live reasoning accordion, structured registry database explorer, and document ingestion panel.
-- **Robust Mock Mode**: Fully operational mock seeder and rule-based agent simulator if API keys are not supplied, ensuring seamless offline testing.
+- **Robust Mock Mode & API Key Bypass**: Fully operational mock seeder and rule-based agent simulator if API keys are not supplied. Visitors can input their own keys in the sidebar to run the live model, making it ideal for public deployments.
 
 ---
 
@@ -37,6 +47,9 @@ Unlike standard RAG pipelines that execute a static sequential workflow (e.g. re
 ├── streamlit_app/
 │   └── app.py               # Dark-themed Streamlit terminal
 ├── requirements.txt         # Package dependencies
+├── Dockerfile               # Multi-service container image configuration
+├── start.sh                 # Entrypoint shell startup script
+├── docker-compose.yml       # Local container deployment configurations
 └── README.md                # This file
 ```
 
@@ -44,7 +57,23 @@ Unlike standard RAG pipelines that execute a static sequential workflow (e.g. re
 
 ## Setup & Local Development
 
-### 1. Create and Activate Virtual Environment
+### Option A: Running with Docker (One-Click Local Run)
+Make sure you have Docker installed.
+
+1. **Start the Multi-container Application**:
+   ```bash
+   cd 05-agentic-rag
+   docker-compose up --build
+   ```
+2. **Access the Application**:
+   * Streamlit Frontend: `http://localhost:8501`
+   * FastAPI Backend: `http://localhost:8000/docs`
+
+---
+
+### Option B: Manual Local Setup
+
+#### 1. Create and Activate Virtual Environment
 ```bash
 # Navigate to the project directory
 cd 05-agentic-rag
@@ -56,18 +85,18 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-### 2. Install Dependencies
+#### 2. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Launch Backend API
+#### 3. Launch Backend API
 Start the FastAPI server on port 8000. On startup, it will automatically build schemas and seed the SQLite database with Apple, Microsoft, NVIDIA, and Tesla reports.
 ```bash
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 4. Launch Streamlit UI
+#### 4. Launch Streamlit UI
 In a separate terminal (with virtual environment activated):
 ```bash
 python -m streamlit run streamlit_app/app.py --server.port 8501

@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  financial-analyst-agent:
+    build: .
+    container_name: financial_analyst_agent_container
+    ports:
+      - "8501:7860"  # Streamlit dashboard mapped locally to 8501
+      - "8000:8000"  # FastAPI backend mapped locally to 8000
+    environment:
+      - CHAT_MODEL=gpt OS 120 B
+      - RERANKER_PROVIDER=none
+      # Optional: reference your local keys from host environment
+      # - GROQ_API_KEY=${GROQ_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped

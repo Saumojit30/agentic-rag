@@ -60,18 +60,29 @@ st.markdown(
 st.title("💼 Financial Analyst Agentic RAG Terminal")
 st.caption("Structured Finance Registry + SEC Hybrid Vector RAG + Autonomous Planning Loop")
 
-# Check backend health
-try:
-    health = httpx.get(f"{BACKEND_URL}/health").json()
-    is_mock = health.get("mock_mode", True)
-    active_model = health.get("model", "llama-3.3-70b-versatile")
-except Exception:
-    st.error("Cannot connect to FastAPI backend on port 8000. Please start the backend server.")
-    st.stop()
-
 # --- Sidebar Configuration ---
 with st.sidebar:
     st.header("Terminal Setup")
+    
+    # Dynamic API key entry
+    custom_key = st.text_input(
+        "API Key (Optional Override)", 
+        type="password",
+        help="Input your OpenAI or Groq API key to run live LLM agents. If empty, the system defaults to Mock Mode."
+    )
+
+    # Check backend health with optional API key
+    try:
+        health_params = {}
+        if custom_key:
+            health_params["api_key"] = custom_key
+        health = httpx.get(f"{BACKEND_URL}/health", params=health_params).json()
+        is_mock = health.get("mock_mode", True)
+        active_model = health.get("model", "llama-3.3-70b-versatile")
+    except Exception:
+        st.error("Cannot connect to FastAPI backend on port 8000. Please start the backend server.")
+        st.stop()
+
     if is_mock:
         st.warning("⚠️ Mock Mode: No API key configured. Executing simulated ReAct planning traces.")
     else:
@@ -178,6 +189,8 @@ with tab_terminal:
             # SSE streaming parser
             try:
                 params = {"question": question, "session_id": selected_session}
+                if custom_key:
+                    params["api_key"] = custom_key
                 with httpx.stream("GET", f"{BACKEND_URL}/query_stream", params=params, timeout=120.0) as r:
                     current_event = None
                     for line in r.iter_lines():
@@ -236,7 +249,7 @@ with tab_registry:
 
     if companies:
         df = pd.DataFrame(companies)
-        # Reorder columns for readability
+        # ReOrder columns for readability
         cols = ["ticker", "company_name", "sector", "revenue", "net_income", "operating_income", "cash", "total_assets", "total_liabilities", "competitors"]
         existing_cols = [c for c in cols if c in df.columns]
         df_display = df[existing_cols].copy()
@@ -374,7 +387,10 @@ document_type: transcript
             with st.spinner("Processing document (splitting, embedding, parsing)..."):
                 try:
                     payload = {"doc_name": ingest_name, "text": ingest_text}
-                    res = httpx.post(f"{BACKEND_URL}/ingest", json=payload).json()
+                    ingest_params = {}
+                    if custom_key:
+                        ingest_params["api_key"] = custom_key
+                    res = httpx.post(f"{BACKEND_URL}/ingest", json=payload, params=ingest_params).json()
                     
                     st.success(f"Successfully indexed document! Added {res.get('chunks')} chunks.")
                     if res.get("extracted_profile"):

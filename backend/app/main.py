@@ -65,8 +65,10 @@ class SessionCreate(BaseModel):
 # --- REST API Endpoints ---
 
 @app.get("/health")
-def health_check():
-    return {"status": "ok", "mock_mode": llm.mock, "model": settings.chat_model}
+def health_check(api_key: Optional[str] = None):
+    # Check if a custom key is provided or if the system key is active
+    has_key = (api_key and api_key.strip()) or not llm.mock
+    return {"status": "ok", "mock_mode": not has_key, "model": settings.chat_model}
 
 @app.get("/sessions")
 def get_sessions():
@@ -93,9 +95,15 @@ def get_documents():
     return store.list_docs()
 
 @app.post("/ingest")
-def ingest_document(req: IngestRequest):
+def ingest_document(req: IngestRequest, api_key: Optional[str] = None):
     try:
-        res = pipeline.ingest(req.doc_name, req.text)
+        # If dynamic API key is provided, instantiate context-specific clients
+        if api_key and api_key.strip():
+            dynamic_llm = LLMClient(api_key=api_key)
+            dynamic_pipeline = RAGPipeline(llm=dynamic_llm, store=store)
+            res = dynamic_pipeline.ingest(req.doc_name, req.text)
+        else:
+            res = pipeline.ingest(req.doc_name, req.text)
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -127,10 +135,19 @@ def add_company_profile(req: CompanyProfileRequest):
 # --- Streaming Agent Event Endpoint ---
 
 @app.get("/query_stream")
-async def run_query_stream(question: str, session_id: Optional[str] = None):
+async def run_query_stream(question: str, session_id: Optional[str] = None, api_key: Optional[str] = None):
     """Invokes the ReAct agent loop and streams thought process and token events."""
     if not question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+        
+    # If dynamic API key is provided, instantiate context-specific clients
+    if api_key and api_key.strip():
+        dynamic_llm = LLMClient(api_key=api_key)
+        dynamic_pipeline = RAGPipeline(llm=dynamic_llm, store=store)
+        return StreamingResponse(
+            dynamic_pipeline.agent.run(question, session_id),
+            media_type="text/event-stream"
+        )
         
     return StreamingResponse(
         pipeline.agent.run(question, session_id),

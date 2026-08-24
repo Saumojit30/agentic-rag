@@ -9,7 +9,7 @@ class Settings:
     api_key: str = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY", "")
     base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "nomic-embed-text-v1_5")
-    chat_model: str = os.getenv("CHAT_MODEL", "llama-3.3-70b-versatile")
+    chat_model: str = os.getenv("CHAT_MODEL", "gpt OS 120 B")
 
     # --- Retrieval & Agent ---
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "600"))
