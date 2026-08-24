@@ -1,4 +1,4 @@
-"""Premium dark-themed Streamlit dashboard for Corporate Intelligence & Financial Agentic RAG."""
+"""Premium dark-themed Streamlit dashboard for Corporate Intelligence & RAGA (Financial Analyst Agentic RAG)."""
 
 import json
 import streamlit as st
@@ -9,7 +9,7 @@ import pandas as pd
 BACKEND_URL = "http://localhost:8000"
 
 st.set_page_config(
-    page_title="Financial Analyst Terminal",
+    page_title="RAGA Analyst Terminal",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -57,8 +57,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("💼 Financial Analyst Agentic RAG Terminal")
-st.caption("Structured Finance Registry + SEC Hybrid Vector RAG + Autonomous Planning Loop")
+st.title("💼 RAGA: Corporate Intelligence Terminal")
+st.caption("RAGA (Retrieval-Augmented Generation Analyst) | SQL Registry + SEC Hybrid Vector RAG + Llama Prompt Guard")
 
 # --- Sidebar Configuration ---
 with st.sidebar:
@@ -78,7 +78,7 @@ with st.sidebar:
             health_params["api_key"] = custom_key
         health = httpx.get(f"{BACKEND_URL}/health", params=health_params).json()
         is_mock = health.get("mock_mode", True)
-        active_model = health.get("model", "llama-3.3-70b-versatile")
+        active_model = health.get("model", "gpt OS 120 B")
     except Exception:
         st.error("Cannot connect to FastAPI backend on port 8000. Please start the backend server.")
         st.stop()
@@ -168,7 +168,7 @@ with tab_terminal:
             st.markdown(msg["content"])
 
     # Chat Input
-    if question := st.chat_input("Ask the Analyst Agent to search filings, run metrics, or compile memos..."):
+    if question := st.chat_input("Ask RAGA to search filings, run metrics, remember preferences, or compile memos..."):
         # Write user question
         with st.chat_message("user"):
             st.markdown(question)
@@ -227,7 +227,7 @@ with tab_terminal:
                                 answer_container.markdown(final_answer)
                                 
                             elif current_event == "error":
-                                st.error(f"Agent Error: {data.get('message')}")
+                                st.error(f"Security/Agent Error: {data.get('message')}")
                                 
                             elif current_event == "done":
                                 st.success("Analysis complete!")

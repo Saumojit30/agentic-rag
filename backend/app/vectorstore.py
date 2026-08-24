@@ -1,4 +1,4 @@
-"""SQLite vector store with metadata filtering, hybrid search, and company metrics database."""
+"""SQLite vector store with metadata filtering, hybrid search, company metrics database, and semantic user memory."""
 
 import json
 import math
@@ -59,7 +59,7 @@ class VectorStore:
                 )
                 """
             )
-            # Chat messages table (supports saving conversation steps & final answers)
+            # Chat messages table
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -72,7 +72,7 @@ class VectorStore:
                 )
                 """
             )
-            # Relational Company Metrics table (structured financials)
+            # Relational Company Metrics table
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS company_metrics (
@@ -90,8 +90,22 @@ class VectorStore:
                 )
                 """
             )
+            # Semantic User Memory table (relates key analyst observations and user preferences)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_memory (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id     TEXT NOT NULL,
+                    content        TEXT NOT NULL,
+                    embedding      TEXT NOT NULL, -- JSON list of floats
+                    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(session_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
+                )
+                """
+            )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(doc_name)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_user_memory_session ON user_memory(session_id)")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._path, timeout=30.0)
@@ -152,7 +166,7 @@ class VectorStore:
         ]
 
     # ------------------------------------------------------------------
-    # Retrieve Full Document Content (For tool: fetch_document_by_name)
+    # Retrieve Full Document Content
     # ------------------------------------------------------------------
     def get_document_full_text(self, doc_name: str) -> str:
         with self._connect() as conn:
@@ -176,20 +190,15 @@ class VectorStore:
         alpha: float = 0.5,
         embedding_name: str = "",
     ) -> list[dict]:
-        """Hybrid search combining vector similarity and FTS5 BM25.
-        
-        alpha=1.0: Pure semantic search
-        alpha=0.0: Pure lexical search
-        """
+        """Hybrid search combining vector similarity and FTS5 BM25."""
         where_clauses = ["embedding_name = ?"]
         params = [embedding_name]
 
-        # Build metadata filters (e.g., {"ticker": "AAPL", "fiscal_year": 2025})
+        # Build metadata filters
         for key, value in filters.items():
             if value is None:
                 continue
             if isinstance(value, dict):
-                # Handle operators like {">=": 2024}
                 for op, val in value.items():
                     if op in (">", ">=", "<", "<=", "="):
                         where_clauses.append(f"json_extract(metadata, '$.{key}') {op} ?")
@@ -213,14 +222,11 @@ class VectorStore:
                 semantic_results.append({"id": r["id"], "score": sim, "row": r})
                 
             semantic_results.sort(key=lambda x: x["score"], reverse=True)
-            
-            # Rank dictionary for RRF
             semantic_ranks = {item["id"]: rank for rank, item in enumerate(semantic_results, 1)}
 
             # 2. Lexical Search (FTS5)
             lexical_results = []
             if lexical_query.strip():
-                # Escaping matching keywords
                 safe_query = ' OR '.join(f'"{w}"' for w in lexical_query.replace('"', '').split())
                 if safe_query:
                     fts_sql = f"""
@@ -326,6 +332,39 @@ class VectorStore:
             d["competitors"] = json.loads(d["competitors"] or "[]")
             res.append(d)
         return res
+
+    # ------------------------------------------------------------------
+    # Semantic User Memory
+    # ------------------------------------------------------------------
+    def add_user_memory(self, session_id: str, content: str, embedding: list[float]) -> None:
+        embedding_json = json.dumps(embedding)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO user_memory (session_id, content, embedding, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (session_id, content, embedding_json)
+            )
+
+    def search_user_memory(self, session_id: str, query_vec: list[float], top_k: int = 3) -> list[dict]:
+        """Query semantic memories associated with this session."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT content, embedding FROM user_memory WHERE session_id = ?",
+                (session_id,)
+            ).fetchall()
+        
+        if not rows:
+            return []
+            
+        memories = []
+        for r in rows:
+            sim = cosine(query_vec, json.loads(r["embedding"]))
+            memories.append({"content": r["content"], "score": sim})
+            
+        memories.sort(key=lambda x: x["score"], reverse=True)
+        return memories[:top_k]
 
     # ------------------------------------------------------------------
     # Query Cache

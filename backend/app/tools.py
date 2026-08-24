@@ -43,7 +43,7 @@ class FinancialToolset:
         if doc_type:
             filters["document_type"] = doc_type.strip()
 
-        # Query database (requesting top 10 candidates for synthesis)
+        # Query database (requesting top 8 candidates for synthesis)
         candidates = self.store.search(
             query_vec=query_vec,
             lexical_query=query,
@@ -203,7 +203,7 @@ class FinancialToolset:
         memo = f"""# INVESTMENT RESEARCH MEMORANDUM
 
 **TO:** Investment Committee
-**FROM:** Senior Market Intelligence Agent
+**FROM:** RAGA: Retrieval-Augmented Generation Analyst
 **DATE:** 2026-08-21
 **SUBJECT:** Financial Analysis and Recommendation: **{company_name} ({ticker})**
 
@@ -227,12 +227,52 @@ Based on the combination of quantitative ratios and qualitative transcript revie
 - **Target Audience Relevance**: Suitable for growth/value portfolios.
 
 ---
-*Disclaimer: Generated autonomously by the Antigravity Financial Analyst Agent. For educational and portfolio demonstration purposes only.*
+*Disclaimer: Generated autonomously by RAGA (Financial Analyst Agentic RAG). For educational and portfolio demonstration purposes only.*
 """
         return memo
 
+    def save_user_preference(self, session_id: str, content: str) -> str:
+        """Save a key user preference or analytical finding to the session's semantic memory.
+        
+        Args:
+            session_id: The session ID of the active chat.
+            content: User preference statement (e.g. 'User prefers companies with Net Income > $10B').
+        """
+        if not content.strip():
+            return "Error: Memory content cannot be empty."
+            
+        if self.llm.mock:
+            embedding = [0.0] * 1536
+        else:
+            embedding = self.llm.embed_texts([content])[0]
+            
+        self.store.add_user_memory(session_id, content, embedding)
+        return f"Successfully saved to session memory: '{content}'"
+
+    def search_user_memory(self, session_id: str, query: str) -> str:
+        """Search the session's semantic memory to retrieve past user preferences or noted analyst observations.
+        
+        Args:
+            session_id: The session ID of the active chat.
+            query: Memory search query keywords (e.g. 'preferred metrics').
+        """
+        if self.llm.mock:
+            query_vec = [0.0] * 1536
+        else:
+            query_vec = self.llm.embed_texts([query])[0]
+            
+        memories = self.store.search_user_memory(session_id, query_vec, top_k=3)
+        if not memories:
+            return "No matching session memories found."
+            
+        res = "Retrieved Session Memories:\n\n"
+        for i, m in enumerate(memories):
+            res += f"{i+1}. [Similarity Score: {round(m['score'], 4)}] {m['content']}\n"
+        return res
+
 
 # Schema definitions for Agent function calling
+# Updated to support save_user_preference and search_user_memory
 TOOLS_SCHEMA = [
     {
         "type": "function",
@@ -348,6 +388,40 @@ TOOLS_SCHEMA = [
                     }
                 },
                 "required": ["ticker", "findings"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_user_preference",
+            "description": "Store a user investment preference, risk tolerance, or key observation in the session's semantic long-term memory.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "content": {
+                        "type": "STRING",
+                        "description": "The exact preference or observation statement to remember (e.g. 'User prefers Apple over Nvidia due to stable cash flow moats.')."
+                    }
+                },
+                "required": ["content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_user_memory",
+            "description": "Query the session's semantic memory to retrieve past user preference constraints or historical analyst findings.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "query": {
+                        "type": "STRING",
+                        "description": "Search query keywords to find related memories (e.g. 'growth metrics preference')."
+                    }
+                },
+                "required": ["query"]
             }
         }
     }

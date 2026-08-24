@@ -1,5 +1,6 @@
 """FastAPI backend server exposing RAG and Financial Analyst Agent routes."""
 
+import json
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -10,9 +11,10 @@ from .config import settings
 from .rag import RAGPipeline
 from .vectorstore import VectorStore
 from .llm import LLMClient
+from .guardrails import FinancialGuardrails
 from .sample_docs import populate_sample_data
 
-app = FastAPI(title="Financial Analyst Agentic RAG API", version="1.0.0")
+app = FastAPI(title="RAGA: Financial Analyst Agentic RAG API", version="1.0.0")
 
 # Setup CORS
 app.add_middleware(
@@ -27,6 +29,7 @@ app.add_middleware(
 llm = LLMClient()
 store = VectorStore()
 pipeline = RAGPipeline(llm=llm, store=store)
+guardrails = FinancialGuardrails(llm_client=llm)
 
 # Seed database on startup if empty
 @app.on_event("startup")
@@ -139,6 +142,20 @@ async def run_query_stream(question: str, session_id: Optional[str] = None, api_
     """Invokes the ReAct agent loop and streams thought process and token events."""
     if not question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+        
+    # Instantiate active guardrails check
+    active_guard = guardrails
+    if api_key and api_key.strip():
+        dynamic_llm = LLMClient(api_key=api_key)
+        active_guard = FinancialGuardrails(llm_client=dynamic_llm)
+        
+    validation = active_guard.validate_prompt(question)
+    if not validation["safe"]:
+        # Terminate immediately by yielding a structured error event
+        async def reject_generator():
+            yield f"event: error\ndata: {json.dumps({'message': validation['reason']})}\n\n"
+            yield f"event: done\ndata: {json.dumps({'status': 'rejected'})}\n\n"
+        return StreamingResponse(reject_generator(), media_type="text/event-stream")
         
     # If dynamic API key is provided, instantiate context-specific clients
     if api_key and api_key.strip():

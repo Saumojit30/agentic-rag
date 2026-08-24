@@ -1,4 +1,4 @@
-"""Core ReAct Agent executor loop yielding SSE trace events."""
+"""Core ReAct Agent executor loop yielding SSE trace events with loop routing safeguards."""
 
 import json
 import asyncio
@@ -8,7 +8,7 @@ from .vectorstore import VectorStore
 from .tools import FinancialToolset, TOOLS_SCHEMA
 from .config import settings
 
-SYSTEM_PROMPT = """You are a Senior Corporate Financial Analyst Agent. Your objective is to answer research requests using corporate financial records and quantitative tools.
+SYSTEM_PROMPT = """You are RAGA: Retrieval-Augmented Generation Analyst, a Senior Corporate Financial Analyst Agent. Your objective is to answer research requests using corporate financial records and quantitative tools.
 
 RULES:
 1. **Planning & Thought**: Before making any tool call or answering, write a thorough explanation of your reasoning inside `<thought>...</thought>` tags. Planning is critical.
@@ -56,6 +56,7 @@ class FinancialAnalystAgent:
 
         iteration = 0
         final_answer = ""
+        called_tools = [] # Tracks (tool_name, sorted_args_str) to prevent execution loops
         
         while iteration < settings.max_agent_iterations:
             iteration += 1
@@ -84,14 +85,10 @@ class FinancialAnalystAgent:
                 # Extract text between <thought> and </thought>
                 parts = content.split("</thought>")
                 thought_text = parts[0].replace("<thought>", "").strip()
-                # Yield thought
                 yield f"event: thought\ndata: {json.dumps({'text': thought_text})}\n\n"
-                
-                # If there's content after </thought>, keep it as partial final answer
                 if len(parts) > 1 and parts[1].strip():
                     content = parts[1].strip()
             elif content.strip() and not tool_calls:
-                # If it's just raw text, treat it as thought or start of answer
                 yield f"event: thought\ndata: {json.dumps({'text': content.strip()})}\n\n"
 
             # Append assistant message to context
@@ -99,8 +96,9 @@ class FinancialAnalystAgent:
 
             # 3. Handle Tool Calls
             if tool_calls:
-                # If the agent returned tool calls, we execute them one by one
                 tool_msg_list = []
+                loop_detected = False
+                
                 for tool_call in tool_calls:
                     func_name = tool_call.function.name
                     func_args_str = tool_call.function.arguments
@@ -111,14 +109,29 @@ class FinancialAnalystAgent:
                     except ValueError:
                         args = {}
 
+                    # Sort keys to ensure consistent args fingerprint
+                    args_fingerprint = json.dumps(args, sort_keys=True)
+                    call_signature = (func_name, args_fingerprint)
+
+                    # Check if this exact tool call signature has been executed in the immediate previous step
+                    if called_tools and called_tools[-1] == call_signature:
+                        loop_detected = True
+                        yield f"event: thought\ndata: {json.dumps({'text': f'[Routing Guard]: Loop detected calling tool {func_name}. Forcing synthesis path.'})}\n\n"
+                        # Insert corrective instruction message
+                        messages.append({
+                            "role": "user",
+                            "content": f"System Alert: You are looping by calling '{func_name}' with the exact same arguments again. Do NOT call this tool. Compile your final analysis answer now using observations you already possess."
+                        })
+                        break # Break out of loop to re-call LLM with warning
+                    
+                    called_tools.append(call_signature)
                     yield f"event: tool_call\ndata: {json.dumps({'name': func_name, 'args': args})}\n\n"
 
                     # Execute tool in a thread pool (blocking call)
-                    observation = await asyncio.to_thread(self._execute_tool, func_name, args)
+                    observation = await asyncio.to_thread(self._execute_tool, func_name, args, session_id)
                     
                     yield f"event: observation\ndata: {json.dumps({'output': observation})}\n\n"
 
-                    # Build tool response message
                     tool_msg_list.append({
                         "role": "tool",
                         "tool_call_id": call_id,
@@ -126,16 +139,18 @@ class FinancialAnalystAgent:
                         "content": observation
                     })
                 
-                # Append tool results to conversation
+                if loop_detected:
+                    await asyncio.sleep(0.2)
+                    continue # Re-run LLM loop with inserted warning
+                    
                 messages.extend(tool_msg_list)
-                await asyncio.sleep(0.2) # small delay for smooth UI feedback
+                await asyncio.sleep(0.2)
                 
             else:
                 # No tool calls: this is the final answer!
                 final_answer = content
                 
                 # Stream the final answer tokens for premium UX
-                # (For simplicity here, we split the final answer by characters/words to simulate typing)
                 words = final_answer.split(" ")
                 for word in words:
                     yield f"event: token\ndata: {json.dumps({'token': word + ' '})}\n\n"
@@ -151,7 +166,7 @@ class FinancialAnalystAgent:
         # Yield done
         yield f"event: done\ndata: {json.dumps({'status': 'completed', 'iterations': iteration})}\n\n"
 
-    def _execute_tool(self, name: str, args: dict[str, Any]) -> str:
+    def _execute_tool(self, name: str, args: dict[str, Any], session_id: str | None = None) -> str:
         """Executes a financial tool by name and arguments."""
         try:
             if name == "search_sec_filings":
@@ -181,6 +196,16 @@ class FinancialAnalystAgent:
                 return self.toolset.generate_investment_memo(
                     ticker=args.get("ticker", ""),
                     findings=args.get("findings", "")
+                )
+            elif name == "save_user_preference":
+                return self.toolset.save_user_preference(
+                    session_id=session_id or "default",
+                    content=args.get("content", "")
+                )
+            elif name == "search_user_memory":
+                return self.toolset.search_user_memory(
+                    session_id=session_id or "default",
+                    query=args.get("query", "")
                 )
             else:
                 return f"Error: Tool '{name}' not found."

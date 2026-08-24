@@ -1,0 +1,80 @@
+{
+  "metrics": {
+    "tool_call_accuracy": 0.8888888888888888,
+    "math_correctness": 1.0,
+    "keyword_retrieval_rate": 0.125,
+    "faithfulness_judge_score": 1.0
+  },
+  "scenarios": [
+    {
+      "case_id": 1,
+      "question": "Compare Apple and Microsoft's operating margins for FY25.",
+      "tool_call_accuracy": 1.0,
+      "math_correctness_score": 1.0,
+      "keyword_match_score": 1.0,
+      "faithfulness_score": 1.0,
+      "actual_tools": [
+        "get_company_profile",
+        "calculate_financial_ratio",
+        "search_sec_filings",
+        "generate_investment_memo"
+      ]
+    },
+    {
+      "case_id": 2,
+      "question": "What did NVIDIA say about Blackwell product transition yield risks in transcripts?",
+      "tool_call_accuracy": 1.0,
+      "math_correctness_score": 1.0,
+      "keyword_match_score": 0.0,
+      "faithfulness_score": 1.0,
+      "actual_tools": [
+        "get_company_profile",
+        "calculate_financial_ratio",
+        "search_sec_filings",
+        "generate_investment_memo"
+      ]
+    },
+    {
+      "case_id": 3,
+      "question": "Does Tesla have enough cash to cover its total liabilities in FY25?",
+      "tool_call_accuracy": 1.0,
+      "math_correctness_score": 1.0,
+      "keyword_match_score": 1.0,
+      "faithfulness_score": 1.0,
+      "actual_tools": [
+        "get_company_profile",
+        "calculate_financial_ratio",
+        "search_sec_filings",
+        "generate_investment_memo"
+      ]
+    },
+    {
+      "case_id": 4,
+      "question": "Check Nvidia's news sentiment and summarize analyst outlook.",
+      "tool_call_accuracy": 0.0,
+      "math_correctness_score": 1.0,
+      "keyword_match_score": 0.25,
+      "faithfulness_score": 1.0,
+      "actual_tools": [
+        "get_company_profile",
+        "calculate_financial_ratio",
+        "search_sec_filings",
+        "generate_investment_memo"
+      ]
+    },
+    {
+      "case_id": 5,
+      "question": "Calculate Apple's net profit margin for FY25 and write an investment memo.",
+      "tool_call_accuracy": 1.0,
+      "math_correctness_score": 1.0,
+      "keyword_match_score": 1.0,
+      "faithfulness_score": 1.0,
+      "actual_tools": [
+        "get_company_profile",
+        "calculate_financial_ratio",
+        "search_sec_filings",
+        "generate_investment_memo"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-title: Financial Analyst Agentic RAG
+title: RAGA: Financial Analyst Agent
 emoji: 💼
 colorFrom: blue
 colorTo: gray
@@ -8,7 +8,7 @@ app_port: 7860
 pinned: false
 ---
 
-# Project 05 — Financial Analyst Agentic RAG
+# Project 05 — RAGA (Retrieval-Augmented Generation Analyst)
 
 This project implements an advanced **Corporate & Market Intelligence Agent** that combines unstructured document retrieval (SEC filings, earnings call transcripts) with a structured relational financial registry to perform complex analysis, run exact arithmetic calculations, and compile investment memos.
 
