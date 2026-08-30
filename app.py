@@ -4,7 +4,6 @@ import json
 import streamlit as st
 import httpx
 import pandas as pd
-
 import os
 import subprocess
 import sys
@@ -19,8 +18,7 @@ def start_backend_subprocess():
         httpx.get("http://127.0.0.1:8000/health", timeout=1.0)
     except Exception:
         # If not, spawn it in the background
-        # We add the root folder of the project to PYTHONPATH so backend resolves imports correctly
-        root_path = str(Path(__file__).parent.parent.resolve())
+        root_path = str(Path(__file__).parent.resolve())
         env = os.environ.copy()
         if "PYTHONPATH" in env:
             env["PYTHONPATH"] = root_path + os.pathsep + env["PYTHONPATH"]
