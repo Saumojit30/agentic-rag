@@ -3,8 +3,8 @@ title: RAGA Financial Analyst Agent
 emoji: 💼
 colorFrom: blue
 colorTo: gray
-sdk: streamlit
-sdk_version: 1.40.0
+sdk: gradio
+sdk_version: 4.44.0
 app_file: app.py
 pinned: false
 ---
