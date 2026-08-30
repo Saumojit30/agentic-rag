@@ -10,6 +10,8 @@ pinned: false
 
 # Project 05 — RAGA (Retrieval-Augmented Generation Analyst)
 
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A5%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/Jit0777/raga-agentic-RAG)
+
 This project implements an advanced **Corporate & Market Intelligence Agent** that combines unstructured document retrieval (SEC filings, earnings call transcripts) with a structured relational financial registry to perform complex analysis, run exact arithmetic calculations, and compile investment memos.
 
 Unlike standard RAG pipelines that execute a static sequential workflow (e.g. rewrite -> retrieve -> generate), this system runs a dynamic **ReAct (Reasoning and Action) Agent Loop** using function calling schemas. It enables the model to autonomously plan, invoke specific tools, assess intermediate observations, and iterate until it satisfies the user's research request.
