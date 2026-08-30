@@ -69,7 +69,7 @@ Make sure you have Docker installed.
    docker-compose up --build
    ```
 2. **Access the Application**:
-   * Streamlit Frontend: `http://localhost:8501`
+   * Gradio Web UI: `http://localhost:7860`
    * FastAPI Backend: `http://localhost:8000/docs`
 
 ---
@@ -93,18 +93,18 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-#### 3. Launch Backend API
-Start the FastAPI server on port 8000. On startup, it will automatically build schemas and seed the SQLite database with Apple, Microsoft, NVIDIA, and Tesla reports.
+#### 3. Launch Backend API (Optional for standalone API testing)
+Start the FastAPI server on port 8000:
 ```bash
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### 4. Launch Streamlit UI
-In a separate terminal (with virtual environment activated):
+#### 4. Launch Gradio Dashboard
+In your terminal (with virtual environment activated):
 ```bash
-python -m streamlit run streamlit_app/app.py --server.port 8501
+python app.py
 ```
-Open `http://localhost:8501` to access the analyst terminal.
+Open `http://localhost:7860` to access the multi-persona analyst terminal.
 
 ---
 
@@ -113,7 +113,7 @@ Open `http://localhost:8501` to access the analyst terminal.
 RAGA is built on a **fully generalized, domain-agnostic ReAct (Reasoning and Action) planning loop**. While pre-configured as a financial analyst, the system is designed to switch contexts dynamically, converting the planner into different specialized personas.
 
 ### Dynamic Agent Personas
-Selectable from the Streamlit sidebar, the platform swaps system rules and prompts to adjust planning behaviors:
+Selectable from the Analyst Terminal dropdown, the platform swaps system rules and prompts to adjust planning behaviors:
 1. **💼 RAGA (Corporate Finance Analyst)**: Optimizes plans to fetch company statistics, run mathematical formulas, and format professional research memos.
 2. **💻 DevHelper (Software Code Planner)**: Focuses on debugging structures, defensive code architecture design, and outlining program modular splits.
 3. **🔍 Scholar (Research Agent)**: Aggregates qualitative inputs from multiple document chunks, emphasizing citation attribution and data-gap detection.
