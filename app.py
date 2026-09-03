@@ -14,6 +14,7 @@ from backend.app.vectorstore import VectorStore
 from backend.app.guardrails import FinancialGuardrails
 from backend.app.agent import FinancialAnalystAgent
 from backend.app.rag import RAGPipeline
+from backend.app.sample_docs import populate_sample_data
 
 # Initialize shared components
 store = VectorStore()
@@ -23,7 +24,8 @@ pipeline = RAGPipeline(llm=llm, store=store)
 
 # Seed database on startup if empty
 try:
-    pipeline.seed_data()
+    if not store.list_company_profiles():
+        populate_sample_data(pipeline)
 except Exception as e:
     print(f"Seeding info: {e}")
 
@@ -45,14 +47,12 @@ async def chat_stream(message: str, history: list, persona: str, api_key: str):
     validation = active_guard.validate_prompt(message)
     if not validation["safe"]:
         rejection_msg = f"🛡️ **Security Alert**: {validation['reason']}"
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": rejection_msg})
+        history.append([message, rejection_msg])
         yield history, ""
         return
 
-    # Add user message to history
-    history.append({"role": "user", "content": message})
-    history.append({"role": "assistant", "content": ""})
+    # Add user message to history (standard [user, bot] format)
+    history.append([message, ""])
 
     thoughts = []
     final_answer = ""
@@ -94,13 +94,13 @@ async def chat_stream(message: str, history: list, persona: str, api_key: str):
         elif not trace_md:
             full_content = "⏳ *Agent is planning and analyzing records...*"
 
-        history[-1]["content"] = full_content
+        history[-1][1] = full_content
         yield history, ""
 
 
 def get_companies_dataframe():
     """Fetches formatted metrics table for the Structured Registry tab."""
-    companies = store.get_all_company_metrics()
+    companies = store.list_company_profiles()
     if not companies:
         return pd.DataFrame()
     df = pd.DataFrame(companies)
@@ -136,7 +136,7 @@ def upsert_company(ticker, name, sector, revenue, net_income, op_income, cash, a
 
 def get_documents_dataframe():
     """Fetches formatted documents list for Document Explorer tab."""
-    docs = store.get_all_documents()
+    docs = store.list_docs()
     if not docs:
         return pd.DataFrame()
     df = pd.DataFrame(docs)
@@ -205,19 +205,8 @@ def ingest_document(name, text, api_key):
         return f"❌ Ingestion failed: {str(e)}", get_documents_dataframe(), get_companies_dataframe()
 
 
-# ------------------ GRADIO THEME & INTERFACE ------------------
-custom_theme = gr.themes.Soft(
-    primary_hue="blue",
-    secondary_hue="slate",
-    neutral_hue="slate",
-).set(
-    body_background_fill="#0d1117",
-    block_background_fill="#161b22",
-    block_border_width="1px",
-    block_title_text_color="#58a6ff"
-)
-
-with gr.Blocks(theme=custom_theme, title="RAGA: Financial Analyst Agent") as demo:
+# ------------------ GRADIO INTERFACE ------------------
+with gr.Blocks(title="RAGA: Financial Analyst Agent") as demo:
     gr.Markdown("# 💼 RAGA: Corporate Intelligence & Multi-Persona Agent")
     gr.Markdown("Autonomous Multi-Persona ReAct Agent | SQL Registry + SEC Hybrid Vector RAG + Llama Prompt Guard")
 
@@ -252,9 +241,7 @@ with gr.Blocks(theme=custom_theme, title="RAGA: Financial Analyst Agent") as dem
                 with gr.Column(scale=3):
                     chatbot = gr.Chatbot(
                         label="Agent Conversation",
-                        height=550,
-                        type="messages",
-                        show_copy_button=True
+                        height=550
                     )
                     with gr.Row():
                         msg_input = gr.Textbox(
@@ -321,7 +308,7 @@ with gr.Blocks(theme=custom_theme, title="RAGA: Financial Analyst Agent") as dem
                 value="-- Blank --"
             )
             doc_name_in = gr.Textbox(label="Document Name (e.g. netflix_10k_fy25.md)")
-            doc_text_in = gr.TextArea(label="Document Markdown / Text Content", lines=12)
+            doc_text_in = gr.Textbox(label="Document Markdown / Text Content", lines=12)
 
             template_picker.change(load_template, inputs=[template_picker], outputs=[doc_name_in, doc_text_in])
 
