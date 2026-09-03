@@ -16,6 +16,16 @@ from backend.app.agent import FinancialAnalystAgent
 from backend.app.rag import RAGPipeline
 from backend.app.sample_docs import populate_sample_data
 
+# Optional ZeroGPU support for Hugging Face Spaces
+try:
+    import spaces
+    @spaces.GPU
+    def _zero_gpu_init():
+        return True
+    _zero_gpu_init()
+except Exception:
+    pass
+
 # Initialize shared components
 store = VectorStore()
 llm = LLMClient()
