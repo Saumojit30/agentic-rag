@@ -13,7 +13,7 @@ from backend.app.llm import LLMClient
 from backend.app.vectorstore import VectorStore
 from backend.app.guardrails import FinancialGuardrails
 from backend.app.agent import FinancialAnalystAgent
-from backend.app.pipeline import RAGPipeline
+from backend.app.rag import RAGPipeline
 
 # Initialize shared components
 store = VectorStore()
